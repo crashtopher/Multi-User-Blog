@@ -1,6 +1,3 @@
-appengine-helloworld-python
-===========================
-
-![status: inactive](https://img.shields.io/badge/status-inactive-red.svg)
-
-This is a simple Hello World application for Google App Engine (Python)
+To run This Programm on a Local server:
+ 1. open your computers terminal and cd to the app.yaml saved location
+ 2. run the command dev_appserver.py $PWD

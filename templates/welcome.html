@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+    <h2>Welcome, {{username}}!</h2>
+
+    <a href="/newpost">
+        <button>Create A Post!</button>
+    </a>
+
+    <h2>Here Are Your Posts</h2>
+
+    {% for p in posts %}
+        {{ p.render() | safe }}
+        <br><br>
+    {% endfor %}
+
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<form method="post">
+    <h2>Are You Sure You'd Like To Delete Your Comment?</h2>
+    <div>
+        Yes <input type="radio" name="delete" value="yes">
+        No <input type="radio" name="delete" value="no">
+    </div>
+    <div>
+        <br>
+        <input type="submit">
+    </div>
+</form>
+
+{% endblock %}
