@@ -62,10 +62,6 @@ class Handler(webapp2.RequestHandler):
         uid = self.read_secure_cookie('user_id')
         self.user = uid and User.by_id(int(uid))
 
-def render_post(response, post):
-    response.out.write('<b>' + post.subject + '</b><br>')
-    response.out.write(post.content)
-
 ##### user stuff
 def make_salt(length = 5):
     return ''.join(random.choice(letters) for x in xrange(length))
@@ -148,14 +144,15 @@ class Comment(db.Model):
 class BlogFront(Handler):
     def get(self):
         posts = Post.all().order('-created')
-        self.render('front.html', posts = posts)
+        self.render('front.html', posts = posts, user = self.user)
 
 class NewPost(Handler):
     def get(self):
         if self.user:
             self.render("newpost.html")
         else:
-            self.redirect("/login")
+            error = "You need to be logged in to do that."
+            self.render("login-form.html", error = error)
 
     def post(self):
         if not self.user:
@@ -206,18 +203,25 @@ class EditPostPage(Handler):
         subject = self.request.get('subject')
         content = self.request.get('content')
 
+        key = db.Key.from_path('Post', int(post_id), parent=blog_key())
+        post = db.get(key)
+
         # Updates existing entity without deleting and recreating it
-        if subject and content:
-            key = db.Key.from_path('Post', int(post_id), parent=blog_key())
-            post = db.get(key)
-            post.subject = subject
-            post.content = content
-            post.created_by = self.user.name
-            post.put()
-            self.redirect('/%s' % str(post.key().id()))
+        if self.user:
+            if post.created_by == self.user.name:
+                if subject and content:
+                    post.subject = subject
+                    post.content = content
+                    post.created_by = self.user.name
+                    post.put()
+                    self.redirect('/%s' % str(post.key().id()))
+                else:
+                    error = "we need a subject and content, Friend!"
+                    self.render("edit.html", subject=subject, content=content, error=error)
+            else:
+                self.render('error.html')
         else:
-            error = "we need a subject and content, Friend!"
-            self.render("edit.html", subject=subject, content=content, error=error)
+            self.render('error.html')
 
 class DeletePostPage(Handler):
     def get(self, post_id):
@@ -238,61 +242,80 @@ class DeletePostPage(Handler):
 
     def post(self, post_id):
         delete = self.request.get('delete')
+
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
-        if delete == 'yes':
-            post.delete()
-            self.redirect('/welcome')
+
+        if self.user:
+            if post.created_by == self.user.name:
+                if delete == 'yes':
+                    post.delete()
+                    self.redirect('/welcome')
+                else:
+                    self.redirect('/%s/edit' % str(post.key().id()))
+            else:
+                self.render('error.html')
         else:
-            self.redirect('/%s/edit' % str(post.key().id()))
+            self.render('error.html')
 
 #like system for posts
 class LikePost(Handler):
    def post(self, post_id):
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
+        comments = Comment.all().filter('post =', int(post_id)).order('created')
 
         if self.user:
             if post.created_by != self.user.name:
                 if post.liked_by != self.user.name:
                     post.liked_by = self.user.name
                     post.put()
-                    self.render('like.html')
+                    msg = "You Totally Like This Post!"
+                    self.render('permalink.html', post = post, comments = comments, msg = msg)
+
                 else:
                     post.liked_by = "unliked"
                     post.put()
-                    self.render('unlike.html')
+                    msg = "You Dont Like This Post..."
+                    self.render('permalink.html', post = post, comments = comments, msg = msg)
             else:
-                self.render('likeerror.html')
+                msg = "You're Not Allowed To Like That..."
+                self.render('permalink.html', post = post, comments = comments, msg = msg)
         else:
-            self.render('likeerror.html')
+            msg = "You're Not Allowed To Like That..."
+            self.render('permalink.html', post = post, comments = comments, msg = msg)
 
 # comment Class Handlers
 class PostComment(Handler):
     def get(self, post_id):
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
+
         if self.user:
             self.render('postcomment.html', post = post)
         else:
-            self.redirect('/login')
+            error = "You need to be logged in to do that."
+            self.render('login-form.html', error = error)
 
     def post(self, post_id):
         content = self.request.get('content')
         key = db.Key.from_path('Post', int(post_id), parent=blog_key())
         post = db.get(key)
-        if content:
-            c = Comment(post = int(post_id), content = content, created_by = self.user.name)
-            c.put()
-            self.redirect('/%s' % str(post.key().id()))
-        else:
-            error = "You never wrote a comment, Buddy."
-            self.render('postcomment.html', post = post.user.name, error = error)
+
+        if self.user:
+            if content:
+                c = Comment(post = int(post_id), content = content, created_by = self.user.name)
+                c.put()
+                self.redirect('/%s' % str(post.key().id()))
+            else:
+                error = "You never wrote a comment, Buddy."
+                self.render('postcomment.html', post = post.user.name, error = error)
 
 class CommentDelete(Handler):
     def get(self, comment_id):
         key = db.Key.from_path('Comment', int(comment_id))
         comment = db.get(key)
+
         if self.user:
             if comment.created_by == self.user.name:
                 self.render('delcomment.html')
@@ -304,11 +327,14 @@ class CommentDelete(Handler):
 
         key = db.Key.from_path('Comment', int(comment_id))
         comment = db.get(key)
-        if delete == 'yes':
-            comment.delete()
-            self.render('success.html')
-        else:
-            self.redirect('/')
+
+        if self.user:
+            if comment.created_by == self.user.name:
+                if delete == 'yes':
+                    comment.delete()
+                    self.render('success.html')
+                else:
+                    self.redirect('/')
 
 # Code alows for Users to be created and set by cookies
 USER_RE = re.compile(r"^[a-zA-Z0-9_-]{3,20}$")
@@ -402,7 +428,8 @@ class Unit3Welcome(Handler):
             posts = Post.all().filter('created_by =', self.user.name).order('-created')
             self.render('welcome.html', username = self.user.name, posts = posts)
         else:
-            self.redirect('/signup')
+            error = "you need to be logged in to do that."
+            self.render('loggin-form.html', error = error)
 
 app = webapp2.WSGIApplication([('/', BlogFront),
                                ('/newpost', NewPost),

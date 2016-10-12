@@ -2,6 +2,7 @@
 
 {% block content %}
     {{post.render() | safe}}
+    {{msg}}
     {% for c in comments %}
         {{ c.render() | safe }}
     {% endfor %}
