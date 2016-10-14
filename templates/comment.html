@@ -10,6 +10,7 @@
         {{c._render_text | safe}}
     </div>
     <form>
+        <button type="submit" formmethod="get" formaction="{{c.key().id()}}/editcomment">Edit</button>
         <button type="submit" formmethod="get" formaction="/{{c.key().id()}}/delcomment">Delete</button>
     </form>
     <br>
